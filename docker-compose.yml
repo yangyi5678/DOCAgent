@@ -1,0 +1,71 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: agent_runtime
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d agent_runtime"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    build: .
+    env_file:
+      - .env
+    environment:
+      POSTGRES_URI: postgresql://agent:agent@postgres:5432/agent_runtime
+      DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_runtime
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+
+  worker:
+    build: .
+    profiles:
+      - worker
+    env_file:
+      - .env
+    environment:
+      POSTGRES_URI: postgresql://agent:agent@postgres:5432/agent_runtime
+      DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_runtime
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["sh", "-c", "python worker.py \"$${TASK_ID:?set TASK_ID in .env or command environment}\" --worker-id worker-1"]
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+
+volumes:
+  redis-data:
+  postgres-data:
+

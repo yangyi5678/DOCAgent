@@ -1,0 +1,33 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local data, outputs, and bulky/private artifacts
+data/
+outputs/
+logs/
+*.log
+*.zip
+
+# OS/editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Private/local domain material, not the generic agent implementation
+ep33l_mff/
+test_problem_analiz/
+tools/parking_problem_analysis.py
+
+# Bundled sample logs, if local domain skills are present
+test_problem_analiz/logs.zip

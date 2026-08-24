@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Runtime</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #18202b;
+      --muted: #667085;
+      --line: #d7dce3;
+      --accent: #0f766e;
+      --accent-strong: #115e59;
+      --danger: #b42318;
+      --warning: #b54708;
+      --ok: #067647;
+      --code: #111827;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button,
+    textarea,
+    input {
+      font: inherit;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      height: 100vh;
+    }
+
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-width: 0;
+      border-right: 1px solid var(--line);
+    }
+
+    .topbar,
+    .side-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 56px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .side-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 650;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: var(--warning);
+    }
+
+    .status-dot.connected {
+      background: var(--ok);
+    }
+
+    .session {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .session input {
+      width: 180px;
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .feed {
+      overflow: auto;
+      padding: 16px;
+    }
+
+    .event {
+      margin: 0 0 12px;
+      padding: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .event.user {
+      border-color: #99d6cf;
+      background: #f0fdfa;
+    }
+
+    .event.error {
+      border-color: #f2a8a1;
+      background: #fff4f2;
+    }
+
+    .event.interrupt {
+      border-color: #f7c77b;
+      background: #fffbeb;
+    }
+
+    .event-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .event-type {
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .event pre {
+      overflow: auto;
+      max-height: 260px;
+      margin: 8px 0 0;
+      padding: 10px;
+      border-radius: 6px;
+      background: #101828;
+      color: #f9fafb;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .composer {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 46px;
+      max-height: 150px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text);
+      background: #fff;
+    }
+
+    button {
+      height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 0 14px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover {
+      background: var(--accent-strong);
+    }
+
+    button.danger {
+      border-color: #f2a8a1;
+      color: var(--danger);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .side {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      min-width: 0;
+      background: #fbfcfd;
+    }
+
+    .side-body {
+      overflow: auto;
+      padding: 14px;
+    }
+
+    .section {
+      margin-bottom: 18px;
+    }
+
+    .section h2 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 6px 10px;
+      color: var(--muted);
+    }
+
+    .kv strong {
+      color: var(--text);
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .interrupt-panel {
+      display: none;
+      padding: 14px;
+      background: #fffbeb;
+      border-bottom: 1px solid #f7c77b;
+    }
+
+    .interrupt-panel.active {
+      display: block;
+    }
+
+    .interrupt-panel h2 {
+      margin: 0 0 6px;
+      font-size: 15px;
+    }
+
+    .interrupt-panel p {
+      margin: 0 0 10px;
+      color: #7a4b00;
+    }
+
+    .interrupt-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .nodes {
+      display: grid;
+      gap: 8px;
+    }
+
+    .node {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr);
+      gap: 9px;
+      align-items: start;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .node-mark {
+      width: 10px;
+      height: 10px;
+      margin-top: 5px;
+      border-radius: 999px;
+      background: #98a2b3;
+    }
+
+    .node.completed .node-mark {
+      background: var(--ok);
+    }
+
+    .node.failed .node-mark {
+      background: var(--danger);
+    }
+
+    .node.queued .node-mark {
+      background: var(--accent);
+    }
+
+    .node.waiting_user .node-mark {
+      background: var(--warning);
+    }
+
+    .node-title {
+      overflow-wrap: anywhere;
+      font-weight: 650;
+    }
+
+    .node-meta {
+      overflow-wrap: anywhere;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 10px 0;
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
+      .main {
+        min-height: 65vh;
+        border-right: 0;
+      }
+
+      .side {
+        max-height: 35vh;
+        border-top: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <main class="main">
+      <header class="topbar">
+        <div class="title">
+          <span id="statusDot" class="status-dot"></span>
+          <span>Agent Runtime</span>
+        </div>
+        <label class="session">
+          Session
+          <input id="sessionInput" value="default-session">
+        </label>
+      </header>
+
+      <section id="feed" class="feed" aria-live="polite"></section>
+
+      <form id="composer" class="composer">
+        <textarea id="messageInput" placeholder="输入要交给 Agent 的任务"></textarea>
+        <button id="sendButton" class="primary" type="submit">发送</button>
+      </form>
+    </main>
+
+    <aside class="side">
+      <header class="side-header">
+        <div class="title">运行状态</div>
+        <div class="side-actions">
+          <button id="stopButton" class="danger" type="button" disabled>停止</button>
+          <button id="reconnectButton" type="button">重连</button>
+        </div>
+      </header>
+
+      <section id="interruptPanel" class="interrupt-panel">
+        <h2>等待用户确认</h2>
+        <p id="interruptPrompt"></p>
+        <textarea id="interruptInput" placeholder="确认意见、补充信息或表单参数"></textarea>
+        <div class="interrupt-actions">
+          <button id="approveButton" class="primary" type="button">确认继续</button>
+          <button id="supplementButton" type="button">补充后继续</button>
+          <button id="rejectButton" class="danger" type="button">拒绝/取消</button>
+        </div>
+      </section>
+
+      <div class="side-body">
+        <section class="section">
+          <h2>当前任务</h2>
+          <div class="kv">
+            <span>Task</span><strong id="taskId">-</strong>
+            <span>Status</span><strong id="taskStatus">idle</strong>
+            <span>Workers</span><strong id="workerCommand">-</strong>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>节点进度</h2>
+          <div id="nodes" class="nodes">
+            <div class="empty">还没有任务。</div>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const feed = document.getElementById("feed");
+    const statusDot = document.getElementById("statusDot");
+    const sessionInput = document.getElementById("sessionInput");
+    const composer = document.getElementById("composer");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+    const stopButton = document.getElementById("stopButton");
+    const reconnectButton = document.getElementById("reconnectButton");
+    const interruptPanel = document.getElementById("interruptPanel");
+    const interruptPrompt = document.getElementById("interruptPrompt");
+    const interruptInput = document.getElementById("interruptInput");
+    const approveButton = document.getElementById("approveButton");
+    const supplementButton = document.getElementById("supplementButton");
+    const rejectButton = document.getElementById("rejectButton");
+    const taskIdEl = document.getElementById("taskId");
+    const taskStatusEl = document.getElementById("taskStatus");
+    const workerCommandEl = document.getElementById("workerCommand");
+    const nodesEl = document.getElementById("nodes");
+
+    let ws = null;
+    let activeTaskId = null;
+    let activeInterrupt = null;
+    let activeInterruptId = null;
+
+    function connect() {
+      if (ws) {
+        ws.close();
+      }
+      const sessionId = encodeURIComponent(sessionInput.value.trim() || "default-session");
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      ws = new WebSocket(`${protocol}://${location.host}/ws/${sessionId}`);
+
+      ws.onopen = () => {
+        statusDot.classList.add("connected");
+        sendButton.disabled = false;
+      };
+
+      ws.onclose = () => {
+        statusDot.classList.remove("connected");
+        sendButton.disabled = true;
+        addEvent({ type: "connection_closed", message: "WebSocket 已断开。" });
+      };
+
+      ws.onerror = () => {
+        addEvent({ type: "error", message: "WebSocket 连接异常。" });
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleServerEvent(data);
+      };
+    }
+
+    function send(data) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        addEvent({ type: "error", message: "WebSocket 尚未连接。" });
+        return;
+      }
+      ws.send(JSON.stringify(data));
+    }
+
+    function handleServerEvent(event) {
+      addEvent(event);
+
+      if (event.task_id) {
+        activeTaskId = event.task_id;
+        taskIdEl.textContent = event.task_id;
+      }
+
+      if (event.type === "task_submitted") {
+        workerCommandEl.textContent = formatWorkerRuntime(event.worker_runtime);
+        renderRuntime(event.runtime_state);
+      }
+
+      if (event.worker_runtime) {
+        workerCommandEl.textContent = formatWorkerRuntime(event.worker_runtime);
+      }
+
+      if (event.type === "runtime_state" || event.type === "interrupt_resolved" || event.type === "task_finished" || event.type === "task_cancelled") {
+        renderRuntime(event.runtime_state);
+      }
+
+      if (event.type === "agent_status") {
+        taskStatusEl.textContent = event.status || "running";
+      }
+
+      if (event.type === "interrupt") {
+        activeInterrupt = event.interrupt;
+        activeInterruptId = event.interrupt_id;
+        activeTaskId = event.task_id;
+        interruptPrompt.textContent = event.interrupt?.prompt || "需要用户确认后继续。";
+        interruptInput.value = "";
+        interruptPanel.classList.add("active");
+        renderRuntime(event.runtime_state);
+      }
+
+      if (event.type === "interrupt_resolved" || event.type === "task_finished" || event.type === "task_cancelled") {
+        activeInterrupt = null;
+        activeInterruptId = null;
+        interruptPanel.classList.remove("active");
+      }
+    }
+
+    function addEvent(event) {
+      const el = document.createElement("article");
+      const cssType = event.type === "user_message" ? "user" : event.type === "error" ? "error" : event.type === "interrupt" ? "interrupt" : "";
+      el.className = `event ${cssType}`;
+
+      const time = event.ts ? new Date(event.ts).toLocaleTimeString() : new Date().toLocaleTimeString();
+      const title = eventTitle(event);
+      const body = eventBody(event);
+
+      el.innerHTML = `
+        <div class="event-head">
+          <span class="event-type">${escapeHtml(title)}</span>
+          <span>${escapeHtml(time)}</span>
+        </div>
+        <div>${escapeHtml(body)}</div>
+      `;
+
+      const detail = eventDetail(event);
+      if (detail) {
+        const pre = document.createElement("pre");
+        pre.textContent = detail;
+        el.appendChild(pre);
+      }
+
+      feed.appendChild(el);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function eventTitle(event) {
+      const names = {
+        connected: "连接成功",
+        user_message: "用户输入",
+        agent_status: "后端进程",
+        task_submitted: "任务已提交",
+        runtime_state: "运行状态更新",
+        interrupt: "中断确认",
+        interrupt_resolved: "中断已恢复",
+        task_cancelled: "任务已取消",
+        task_finished: "任务结束",
+        error: "错误",
+        connection_closed: "连接断开"
+      };
+      return names[event.type] || event.type;
+    }
+
+    function eventBody(event) {
+      if (event.content) return event.content;
+      if (event.message) return event.message;
+      if (event.interrupt?.prompt) return event.interrupt.prompt;
+      if (event.status) return `状态：${event.status}`;
+      return event.task_id ? `Task: ${event.task_id}` : "";
+    }
+
+    function formatWorkerRuntime(runtime) {
+      if (!runtime) return "-";
+      const count = runtime.worker_count ?? runtime.stopped_count ?? 0;
+      const pids = runtime.pids || runtime.stopped_pids || [];
+      if (!count && !pids.length) return "-";
+      return `${count} (${pids.join(", ")})`;
+    }
+
+    function eventDetail(event) {
+      const clone = { ...event };
+      delete clone.ts;
+      delete clone.type;
+      delete clone.content;
+      delete clone.message;
+      if (Object.keys(clone).length === 0) return "";
+      return JSON.stringify(clone, null, 2);
+    }
+
+    function renderRuntime(runtimeState) {
+      if (!runtimeState) return;
+      taskStatusEl.textContent = runtimeState.status || "unknown";
+      stopButton.disabled = !canCancel(runtimeState.status);
+      const nodes = runtimeState.node_statuses || [];
+      if (!nodes.length) {
+        nodesEl.innerHTML = '<div class="empty">暂无节点。</div>';
+        return;
+      }
+      nodesEl.innerHTML = "";
+      for (const node of nodes) {
+        const el = document.createElement("div");
+        el.className = `node ${node.status}`;
+        el.innerHTML = `
+          <span class="node-mark"></span>
+          <div>
+            <div class="node-title">${escapeHtml(node.id || "-")} · ${escapeHtml(node.status || "-")}</div>
+            <div class="node-meta">${escapeHtml(node.capability || node.node_type || "-")}</div>
+            <div class="node-meta">${escapeHtml(node.tool || node.description || "")}</div>
+          </div>
+        `;
+        nodesEl.appendChild(el);
+      }
+    }
+
+    function resumeInterrupt(decision) {
+      if (!activeTaskId) {
+        addEvent({ type: "error", message: "没有可恢复的 task_id。" });
+        return;
+      }
+      const content = interruptInput.value.trim();
+      send({
+        type: "resume_interrupt",
+        task_id: activeTaskId,
+        interrupt_id: activeInterruptId,
+        decision,
+        content,
+        reason: decision === "reject" ? content : "",
+        form_data: parseLooseForm(content),
+        interrupt: activeInterrupt
+      });
+    }
+
+    function parseLooseForm(text) {
+      const data = {};
+      for (const line of text.split("\n")) {
+        const index = line.indexOf(":");
+        if (index <= 0) continue;
+        const key = line.slice(0, index).trim();
+        const value = line.slice(index + 1).trim();
+        if (key) data[key] = value;
+      }
+      return data;
+    }
+
+    function canCancel(status) {
+      return Boolean(activeTaskId) && !["idle", "completed", "failed", "timeout", "cancelled"].includes(status || "idle");
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    composer.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const content = messageInput.value.trim();
+      if (!content) return;
+      send({ type: "user_message", content });
+      messageInput.value = "";
+    });
+
+    reconnectButton.addEventListener("click", connect);
+    stopButton.addEventListener("click", () => {
+      if (!activeTaskId) {
+        addEvent({ type: "error", message: "没有正在运行的任务。" });
+        return;
+      }
+      send({
+        type: "cancel_task",
+        task_id: activeTaskId,
+        reason: "user_cancelled",
+        message: "用户在前端点击停止。"
+      });
+    });
+    approveButton.addEventListener("click", () => resumeInterrupt("approve"));
+    supplementButton.addEventListener("click", () => resumeInterrupt("approve"));
+    rejectButton.addEventListener("click", () => resumeInterrupt("reject"));
+
+    sendButton.disabled = true;
+    connect();
+  </script>
+</body>
+</html>
